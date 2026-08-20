@@ -19,6 +19,7 @@ data class AudioSettingsUiState(
     val muezzins: List<Muezzin> = emptyList(),
     val activeProvider: String = "demo",
     val storageUsedBytes: Long = 0L,
+    val userAssignments: Map<String, String> = emptyMap(),
     val loading: Boolean = true,
     val error: String? = null
 )
@@ -31,6 +32,9 @@ class AudioSettingsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AudioSettingsUiState())
     val uiState: StateFlow<AudioSettingsUiState> = _uiState.asStateFlow()
+
+    val userAudio: com.globaladhan.app.data.audio.UserAudioProvider
+        get() = audioService.userAudio
 
     init {
         load()
@@ -48,6 +52,7 @@ class AudioSettingsViewModel @Inject constructor(
                         muezzins = muezzins,
                         activeProvider = audioService.activeProviderKey.value,
                         storageUsedBytes = storage.storageUsedBytes(),
+                        userAssignments = userAudio.assignments.value,
                         loading = false
                     )
                 }
@@ -55,6 +60,16 @@ class AudioSettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(loading = false, error = e.message) }
             }
         }
+    }
+
+    fun assignUserAudio(key: String, uri: String) {
+        userAudio.assignAudio(key, uri)
+        _uiState.update { it.copy(userAssignments = userAudio.assignments.value) }
+    }
+
+    fun clearUserAudio(key: String) {
+        userAudio.clearAssignment(key)
+        _uiState.update { it.copy(userAssignments = userAudio.assignments.value) }
     }
 
     fun refreshStorage() {

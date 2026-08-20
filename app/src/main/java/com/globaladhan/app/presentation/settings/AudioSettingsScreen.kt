@@ -1,5 +1,7 @@
 package com.globaladhan.app.presentation.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,8 +17,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,6 +39,17 @@ fun AudioSettingsScreen(
     viewModel: AudioSettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // SAF audio picker for "Use My Own Audio".
+    var pickedKey by remember { mutableStateOf<String?>(null) }
+    val pickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val key = pickedKey ?: return@rememberLauncherForActivityResult
+        if (uri != null) {
+            viewModel.assignUserAudio(key, uri.toString())
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -121,8 +138,87 @@ fun AudioSettingsScreen(
             }
         }
 
+        // "Use My Own Audio" (spec §12): assign user-owned files to reciter/adhan.
+        item { SectionTitle(stringResource(R.string.use_my_own_audio)) }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.user_audio_explainer),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    UserAudioRow(
+                        label = stringResource(R.string.user_quran_audio),
+                        assigned = uiState.userAssignments["quran:user"] != null,
+                        onPick = {
+                            pickedKey = "quran:user"
+                            pickerLauncher.launch(
+                                arrayOf("audio/mpeg", "audio/mp4", "audio/x-wav", "audio/wav")
+                            )
+                        },
+                        onClear = { viewModel.clearUserAudio("quran:user") }
+                    )
+                    HorizontalDivider()
+                    UserAudioRow(
+                        label = stringResource(R.string.user_adhan_audio),
+                        assigned = uiState.userAssignments["adhan:standard"] != null,
+                        onPick = {
+                            pickedKey = "adhan:standard"
+                            pickerLauncher.launch(
+                                arrayOf("audio/mpeg", "audio/mp4", "audio/x-wav", "audio/wav")
+                            )
+                        },
+                        onClear = { viewModel.clearUserAudio("adhan:standard") }
+                    )
+                }
+            }
+        }
+
         item { Spacer(Modifier.height(24.dp)) }
     }
+}
+
+@Composable
+private fun UserAudioRow(
+    label: String,
+    assigned: Boolean,
+    onPick: () -> Unit,
+    onClear: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        if (assigned) {
+            Text("✓", color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = onClear) { Text(stringResource(R.string.clear)) }
+        } else {
+            OutlinedButton(onClick = onPick) { Text(stringResource(R.string.pick_audio)) }
+        }
+    }
+}
+
+@Composable
+private fun HorizontalDivider() {
+    androidx.compose.material3.HorizontalDivider(
+        modifier = Modifier.padding(vertical = 6.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    )
 }
 
 @Composable

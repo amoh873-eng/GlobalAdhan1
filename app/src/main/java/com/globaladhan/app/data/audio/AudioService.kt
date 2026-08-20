@@ -16,13 +16,18 @@ import javax.inject.Singleton
  */
 @Singleton
 class AudioService @Inject constructor(
-    demoProvider: DemoAudioProvider
+    demoProvider: DemoAudioProvider,
+    userProvider: UserAudioProvider
 ) {
 
     /** Provider registry — add new providers here (config-driven, not UI-coupled). */
     private val providers: Map<String, AudioProvider> = mapOf(
-        demoProvider.key to demoProvider
+        demoProvider.key to demoProvider,
+        userProvider.key to userProvider
     )
+
+    /** Exposed for the "Use My Own Audio" UI (assign/clear user audio files). */
+    val userAudio: UserAudioProvider = userProvider
 
     private val _activeProviderKey = MutableStateFlow("demo")
     val activeProviderKey: StateFlow<String> = _activeProviderKey.asStateFlow()
