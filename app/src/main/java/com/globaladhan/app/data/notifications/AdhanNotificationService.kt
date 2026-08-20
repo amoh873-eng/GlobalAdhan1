@@ -36,6 +36,8 @@ class AdhanNotificationService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO)
     private var player: MediaPlayer? = null
     private var playbackJob: Job? = null
+    private var audioFocusRequest: android.media.AudioFocusRequest? = null
+    private var audioManager: android.media.AudioManager? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -67,6 +69,13 @@ class AdhanNotificationService : Service() {
                 val audio = com.globaladhan.app.domain.audio.AdhanAudioLibrary.byId(reciterId)
                     ?: com.globaladhan.app.domain.audio.AdhanAudioLibrary.default()
                 val resId = audio.resRawId ?: R.raw.adhan
+
+                // Acquire audio focus so the Adhan ducks/pauses other media (spec: audio focus).
+                if (!requestAudioFocus()) {
+                    stopPlayback()
+                    return@launch
+                }
+
                 val afd = resources.openRawResourceFd(resId)
                 player = MediaPlayer().apply {
                     setAudioAttributes(
@@ -91,6 +100,66 @@ class AdhanNotificationService : Service() {
         }
     }
 
+    /** Request transient audio focus (duck). Returns false if denied. */
+    private fun requestAudioFocus(): Boolean {
+        audioManager = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val request = android.media.AudioFocusRequest.Builder(
+                android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+            )
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(audioFocusListener)
+                .build()
+            audioFocusRequest = request
+            return audioManager?.requestAudioFocus(request) ==
+                android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+        @Suppress("DEPRECATION")
+        return audioManager?.requestAudioFocus(
+            audioFocusListener,
+            android.media.AudioManager.STREAM_ALARM,
+            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+        ) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        runCatching {
+            audioFocusRequest?.let {
+                audioManager?.abandonAudioFocusRequest(it)
+            } ?: run {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(audioFocusListener)
+            }
+        }
+    }
+
+    private val audioFocusListener = android.media.AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            android.media.AudioManager.AUDIOFOCUS_LOSS -> {
+                // Another app took focus permanently — stop.
+                stopPlayback()
+            }
+            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                // Pause briefly, then resume when focus returns.
+                runCatching { player?.pause() }
+            }
+            android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                runCatching { player?.setVolume(0.2f, 0.2f) }
+            }
+            android.media.AudioManager.AUDIOFOCUS_GAIN -> {
+                runCatching {
+                    player?.setVolume(1f, 1f)
+                    player?.start()
+                }
+            }
+        }
+    }
+
     private fun vibrate() {
         val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -105,6 +174,7 @@ class AdhanNotificationService : Service() {
         runCatching { player?.stop() }
         runCatching { player?.release() }
         player = null
+        abandonAudioFocus()
     }
 
     private fun buildNotification(prayer: String): android.app.Notification {

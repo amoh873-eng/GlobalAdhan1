@@ -33,6 +33,8 @@ class QuranAudioPlayerImpl @Inject constructor(
     private var player: MediaPlayer? = null
     private var tickerJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main)
+    private var audioManager: android.media.AudioManager? = null
+    private var audioFocusRequest: android.media.AudioFocusRequest? = null
 
     private val _isPlaying = MutableStateFlow(false)
     override val isPlaying: Boolean get() = _isPlaying.value
@@ -65,6 +67,9 @@ class QuranAudioPlayerImpl @Inject constructor(
     ) {
         stopInternal()
         _currentAyah.value = surahNumber to ayahNumber
+        if (!requestAudioFocus()) {
+            return
+        }
         try {
             val mp = MediaPlayer()
             if (resRawId != null) {
@@ -168,5 +173,65 @@ class QuranAudioPlayerImpl @Inject constructor(
         player = null
         _isPlaying.value = false
         _currentPositionMillis.value = 0L
+        abandonAudioFocus()
     }
+
+    private fun requestAudioFocus(): Boolean {
+        audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE)
+            as android.media.AudioManager
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val request = android.media.AudioFocusRequest.Builder(
+                android.media.AudioManager.AUDIOFOCUS_GAIN
+            )
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(audioFocusListener)
+                .build()
+            audioFocusRequest = request
+            return audioManager?.requestAudioFocus(request) ==
+                android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        }
+        @Suppress("DEPRECATION")
+        return audioManager?.requestAudioFocus(
+            audioFocusListener,
+            android.media.AudioManager.STREAM_MUSIC,
+            android.media.AudioManager.AUDIOFOCUS_GAIN
+        ) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        runCatching {
+            audioFocusRequest?.let {
+                audioManager?.abandonAudioFocusRequest(it)
+            } ?: run {
+                @Suppress("DEPRECATION")
+                audioManager?.abandonAudioFocus(audioFocusListener)
+            }
+        }
+    }
+
+    private val audioFocusListener =
+        android.media.AudioManager.OnAudioFocusChangeListener { change ->
+            when (change) {
+                android.media.AudioManager.AUDIOFOCUS_LOSS -> stopInternal()
+                android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                    runCatching { player?.pause() }
+                    _isPlaying.value = false
+                }
+                android.media.AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    runCatching { player?.setVolume(0.2f, 0.2f) }
+                }
+                android.media.AudioManager.AUDIOFOCUS_GAIN -> {
+                    runCatching {
+                        player?.setVolume(1f, 1f)
+                        player?.start()
+                    }
+                    _isPlaying.value = player?.isPlaying == true
+                }
+            }
+        }
 }
