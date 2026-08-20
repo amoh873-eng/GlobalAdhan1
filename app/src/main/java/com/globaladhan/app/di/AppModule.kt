@@ -2,6 +2,7 @@ package com.globaladhan.app.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.work.WorkManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.globaladhan.app.data.local.db.GlobalAdhanDatabase
@@ -107,6 +108,11 @@ object AppModule {
     @Singleton
     fun provideQuranAudioPlayer(@ApplicationContext context: Context): QuranAudioPlayer =
         QuranAudioPlayerImpl(context)
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager =
+        WorkManager.getInstance(context)
 
     @Provides
     @Singleton

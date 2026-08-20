@@ -249,6 +249,10 @@
     <string name="adhkar">Adhkar</string>
     <string name="allah_names">99 Names of Allah</string>
     <string name="islamic_tools">Islamic Tools</string>
+    <string name="recite_ayah">Recite this ayah</string>
+    <string name="al_husary_recitation">Al-Husary recitation</string>
+    <string name="recitation_attribution">Recitation Attribution</string>
+    <string name="recitation_attribution_text">Quran text from the Tanzil Project (public domain). Recitation by Sheikh Mahmoud Khalil Al-Husary, downloaded from everyayah.com for personal use. Word timing data from quranlab/quran-audio (CC-BY-4.0).</string>
     <string name="adhan">Adhan</string>
     <string name="on">ON</string>
     <string name="adhan_settings">Adhan Settings</string>

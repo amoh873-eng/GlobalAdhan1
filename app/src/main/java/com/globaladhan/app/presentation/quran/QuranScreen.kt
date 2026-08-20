@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -92,6 +93,15 @@ fun QuranScreen(
             fontSize = uiState.quranFontSize,
             activeWordByAyah = activeWordByAyah,
             player = viewModel.player,
+            exoPlaying = uiState.exoPlaying,
+            exoPositionMs = uiState.exoPositionMs,
+            onExoPlayAyah = { ayahNumber ->
+                viewModel.playExoRecitation(currentSurah.number, ayahNumber)
+            },
+            onExoPause = { viewModel.pauseExo() },
+            onExoResume = { viewModel.resumeExo() },
+            onExoStop = { viewModel.stopExo() },
+            activeWordFromPosition = viewModel::activeWordFromPosition,
             onWordTap = { ayahNumber, wordIndex ->
                 activeWordByAyah = mapOf(ayahNumber to wordIndex)
             },
@@ -328,6 +338,13 @@ private fun QuranReaderScreen(
     fontSize: Int,
     activeWordByAyah: Map<Int, Int> = emptyMap(),
     player: com.globaladhan.app.data.audio.QuranAudioPlayerImpl? = null,
+    exoPlaying: Boolean = false,
+    exoPositionMs: Long = 0L,
+    onExoPlayAyah: (Int) -> Unit = {},
+    onExoPause: () -> Unit = {},
+    onExoResume: () -> Unit = {},
+    onExoStop: () -> Unit = {},
+    activeWordFromPosition: (Int, Long) -> Int? = { _, _ -> null },
     onWordTap: (Int, Int) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     onBookmarkToggle: (Int) -> Unit,
@@ -361,6 +378,17 @@ private fun QuranReaderScreen(
         }
     }
 
+    // Real word-timing sync from ExoPlayer recitation (spec §7).
+    LaunchedEffect(exoPlaying, exoPositionMs) {
+        if (exoPlaying) {
+            val currentAyah = playbackWord?.first ?: ayahs.first().numberInSurah
+            val wordIndex = activeWordFromPosition(currentAyah, exoPositionMs)
+            if (wordIndex != null) {
+                playbackWord = currentAyah to wordIndex
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -387,6 +415,13 @@ private fun QuranReaderScreen(
                 ayahCount = ayahs.size,
                 isPlaying = isPlaying,
                 positionMs = positionMs
+            )
+            ExoRecitationBar(
+                isPlaying = exoPlaying,
+                positionMs = exoPositionMs,
+                onPlay = { onExoResume() },
+                onPause = { onExoPause() },
+                onStop = { onExoStop() }
             )
         }
     ) { padding ->
@@ -416,14 +451,18 @@ private fun QuranReaderScreen(
                 )
             }
             items(ayahs, key = { it.numberInSurah }) { ayah ->
+                val highlightedIndex = playbackWord?.let { (a, w) ->
+                    if (a == ayah.numberInSurah) w else -1
+                } ?: (activeWordByAyah[ayah.numberInSurah] ?: -1)
                 AyahCard(
                     ayah = ayah,
                     isBookmarked = bookmarks.contains(surah.number to ayah.numberInSurah),
                     fontSize = fontSize,
-                    highlightedWordIndex = activeWordByAyah[ayah.numberInSurah] ?: -1,
+                    highlightedWordIndex = highlightedIndex,
                     onWordTap = { wordIndex -> onWordTap(ayah.numberInSurah, wordIndex) },
                     onBookmarkToggle = { onBookmarkToggle(ayah.numberInSurah) },
-                    onClick = { onAyahClick(ayah.numberInSurah) }
+                    onClick = { onAyahClick(ayah.numberInSurah) },
+                    onPlayRecitation = { onExoPlayAyah(ayah.numberInSurah) }
                 )
             }
         }
@@ -438,6 +477,7 @@ private fun AyahCard(
     highlightedWordIndex: Int = -1,
     onWordTap: ((Int) -> Unit)? = null,
     onBookmarkToggle: () -> Unit,
+    onPlayRecitation: () -> Unit,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -459,6 +499,14 @@ private fun AyahCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row {
+                    // Recite this ayah (Al-Husary via ExoPlayer, spec §7)
+                    IconButton(onClick = onPlayRecitation) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = stringResource(R.string.recite_ayah),
+                            tint = IslamicGold
+                        )
+                    }
                     // Copy ayah
                     IconButton(onClick = {
                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
@@ -754,6 +802,57 @@ private fun QuranAudioControls(
                 modifier = Modifier.semantics { contentDescription = "الآية التالية" }
             ) {
                 Icon(Icons.Filled.SkipNext, contentDescription = stringResource(R.string.next))
+            }
+        }
+    }
+}
+
+/**
+ * Al-Husary recitation bar (spec §7). Shown while the ExoPlayer recitation
+ * is active; buttons pause/resume/stop the current ayah.
+ */
+@Composable
+private fun ExoRecitationBar(
+    isPlaying: Boolean,
+    positionMs: Long,
+    onPlay: () -> Unit,
+    onPause: () -> Unit,
+    onStop: () -> Unit
+) {
+    Surface(color = MaterialTheme.colorScheme.primaryContainer) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🎙️ ${stringResource(R.string.al_husary_recitation)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            if (positionMs > 0) {
+                Text(
+                    text = (positionMs / 1000).toString() + "s",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            IconButton(onClick = { if (isPlaying) onPause() else onPlay() }) {
+                Icon(
+                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = stringResource(R.string.play),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            IconButton(onClick = onStop) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.stop),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             }
         }
     }

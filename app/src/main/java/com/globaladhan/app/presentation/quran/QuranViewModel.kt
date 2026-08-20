@@ -2,10 +2,22 @@ package com.globaladhan.app.presentation.quran
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.globaladhan.app.data.audio.AlHusaryDownloadWorker
+import com.globaladhan.app.data.audio.AudioStorageManager
+import com.globaladhan.app.data.audio.ExoRecitationPlayer
+import com.globaladhan.app.data.audio.WordTimingRepository
 import com.globaladhan.app.data.local.preferences.SettingsRepository
 import com.globaladhan.app.data.repository.QuranRepository
 import com.globaladhan.app.domain.audio.QuranReciter
 import com.globaladhan.app.domain.audio.QuranReciterLibrary
+import com.globaladhan.app.domain.audio.WordTiming
+import com.globaladhan.app.domain.audio.WordTimingEngine
 import com.globaladhan.app.domain.model.QuranAyah
 import com.globaladhan.app.domain.model.QuranSurah
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,14 +44,22 @@ data class QuranUiState(
     val pageNavigation: Int? = null,
     val reciters: List<QuranReciter> = QuranReciterLibrary.reciters,
     val selectedReciterId: String? = null,
-    val showReciterPicker: Boolean = false
+    val showReciterPicker: Boolean = false,
+    val exoPlaying: Boolean = false,
+    val exoPositionMs: Long = 0L,
+    val exoDownloadProgress: Int = -1,
+    val wordTimings: Map<Int, List<WordTiming>> = emptyMap()
 )
 
 @HiltViewModel
 class QuranViewModel @Inject constructor(
     private val quranRepository: QuranRepository,
     private val settings: SettingsRepository,
-    private val audioPlayer: com.globaladhan.app.data.audio.QuranAudioPlayerImpl
+    private val audioPlayer: com.globaladhan.app.data.audio.QuranAudioPlayerImpl,
+    private val exoPlayer: ExoRecitationPlayer,
+    private val wordTimingRepository: WordTimingRepository,
+    private val storage: AudioStorageManager,
+    private val workManager: WorkManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(QuranUiState())
@@ -48,9 +68,23 @@ class QuranViewModel @Inject constructor(
     /** Expose the real audio player so the reader UI can drive word highlighting. */
     val player: com.globaladhan.app.data.audio.QuranAudioPlayerImpl get() = audioPlayer
 
+    /** Expose the ExoPlayer-backed recitation player (spec §7). */
+    val exoRecitation: ExoRecitationPlayer get() = exoPlayer
+
     init {
         loadSurahs()
         loadQuranFontSize()
+        // Mirror Exo recitation state into UI state.
+        viewModelScope.launch {
+            exoPlayer.isPlaying.collect { playing ->
+                _uiState.update { it.copy(exoPlaying = playing) }
+            }
+        }
+        viewModelScope.launch {
+            exoPlayer.positionMs.collect { pos ->
+                _uiState.update { it.copy(exoPositionMs = pos) }
+            }
+        }
     }
 
     private fun loadSurahs() {
@@ -208,5 +242,59 @@ class QuranViewModel @Inject constructor(
     fun selectReciter(reciterId: String) {
         _uiState.update { it.copy(selectedReciterId = reciterId, showReciterPicker = false) }
         viewModelScope.launch { settings.setQuranReciterId(reciterId) }
+    }
+
+    /**
+     * Start ExoPlayer recitation of [surah]:[ayah] with real word-timing sync.
+     * If the ayah audio isn't downloaded yet, enqueue a WorkManager download
+     * (with progress) and play when the file appears.
+     */
+    fun playExoRecitation(surah: Int, ayah: Int) {
+        val file = storage.quranAyahFile("husary", surah, ayah)
+        if (storage.isDownloadComplete(file)) {
+            exoPlayer.playFile(file, surah, ayah)
+            loadWordTimings(surah)
+        } else {
+            enqueueDownload(surah, ayah)
+        }
+    }
+
+    fun pauseExo() = exoPlayer.pause()
+    fun resumeExo() = exoPlayer.resume()
+    fun stopExo() = exoPlayer.stop()
+    fun seekExo(ms: Long) = exoPlayer.seekTo(ms)
+    fun setExoSpeed(speed: Float) = exoPlayer.setSpeed(speed)
+
+    private fun enqueueDownload(surah: Int, ayah: Int) {
+        val request = OneTimeWorkRequestBuilder<AlHusaryDownloadWorker>()
+            .setInputData(
+                androidx.work.Data.Builder()
+                    .putInt(AlHusaryDownloadWorker.KEY_SURAH, surah)
+                    .putInt(AlHusaryDownloadWorker.KEY_AYAH, ayah)
+                    .build()
+            )
+            .setConstraints(
+                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+            )
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, java.time.Duration.ofSeconds(10))
+            .build()
+        workManager.enqueueUniqueWork(
+            AlHusaryDownloadWorker.UNIQUE_NAME + "_${surah}_$ayah",
+            ExistingWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    private fun loadWordTimings(surah: Int) {
+        viewModelScope.launch {
+            val timings = wordTimingRepository.getTimings(surah)
+            _uiState.update { it.copy(wordTimings = timings?.groupBy { t -> t.ayah } ?: emptyMap()) }
+        }
+    }
+
+    /** Resolve the active word for an ayah from the current Exo playback position. */
+    fun activeWordFromPosition(ayah: Int, positionMs: Long): Int? {
+        val timings = _uiState.value.wordTimings[ayah] ?: return null
+        return WordTimingEngine.activeWord(timings, positionMs)?.wordIndex
     }
 }

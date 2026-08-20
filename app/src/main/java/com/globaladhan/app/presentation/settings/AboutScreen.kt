@@ -74,6 +74,7 @@ fun AboutScreen() {
         InfoCard(title = stringResource(R.string.privacy_info), body = stringResource(R.string.privacy_summary))
         InfoCard(title = stringResource(R.string.audio_licensing), body = stringResource(R.string.audio_license_summary))
         InfoCard(title = stringResource(R.string.image_attribution), body = stringResource(R.string.image_attribution_text))
+        InfoCard(title = stringResource(R.string.recitation_attribution), body = stringResource(R.string.recitation_attribution_text))
 
         Spacer(Modifier.height(24.dp))
     }
