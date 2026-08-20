@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.draw.alpha
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.Icon
@@ -34,6 +36,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.globaladhan.app.R
+import com.globaladhan.app.presentation.adhkar.AdhkarScreen
+import com.globaladhan.app.presentation.allahnames.AllahNamesScreen
 import com.globaladhan.app.presentation.calendar.CalendarScreen
 import com.globaladhan.app.presentation.home.HomeScreen
 import com.globaladhan.app.presentation.location.LocationSettingsScreen
@@ -41,6 +45,8 @@ import com.globaladhan.app.presentation.location.ManualLocationScreen
 import com.globaladhan.app.presentation.prayer.PrayerTimesScreen
 import com.globaladhan.app.presentation.qibla.QiblaScreen
 import com.globaladhan.app.presentation.quran.QuranScreen
+import com.globaladhan.app.presentation.qurancompletion.QuranCompletionScreen
+import com.globaladhan.app.presentation.sajdah.SajdahScreen
 import com.globaladhan.app.presentation.settings.AdhanSettingsScreen
 import com.globaladhan.app.presentation.settings.AboutScreen
 import com.globaladhan.app.presentation.settings.AudioSettingsScreen
@@ -61,7 +67,11 @@ enum class Destination(
     LOCATION_SETTINGS("location_settings", R.string.location_settings, Icons.Filled.Place),
     ADHAN_SETTINGS("adhan_settings", R.string.adhan, Icons.Filled.VolumeUp),
     ABOUT("about", R.string.about_globaladhan, Icons.Filled.Info),
-    AUDIO_SETTINGS("audio_settings", R.string.audio_settings, Icons.Filled.VolumeUp)
+    AUDIO_SETTINGS("audio_settings", R.string.audio_settings, Icons.Filled.VolumeUp),
+    ADHKAR("adhkar", R.string.adhkar, Icons.Filled.MenuBook),
+    ALLAH_NAMES("allah_names", R.string.allah_names, Icons.Filled.Star),
+    SAJDAH("sajdah", R.string.sajdah_title, Icons.Filled.MenuBook),
+    QURAN_COMPLETION("quran_completion", R.string.quran_completions, Icons.Filled.CheckCircle)
 }
 
 @Composable
@@ -167,6 +177,18 @@ fun GlobalAdhanApp() {
                         },
                         onOpenAudio = {
                             navController.navigate(Destination.AUDIO_SETTINGS.route)
+                        },
+                        onOpenAdhkar = {
+                            navController.navigate(Destination.ADHKAR.route)
+                        },
+                        onOpenAllahNames = {
+                            navController.navigate(Destination.ALLAH_NAMES.route)
+                        },
+                        onOpenSajdah = {
+                            navController.navigate(Destination.SAJDAH.route)
+                        },
+                        onOpenQuranCompletion = {
+                            navController.navigate(Destination.QURAN_COMPLETION.route)
                         }
                     )
                 }
@@ -190,6 +212,18 @@ fun GlobalAdhanApp() {
                 }
                 composable(Destination.AUDIO_SETTINGS.route) {
                     AudioSettingsScreen()
+                }
+                composable(Destination.ADHKAR.route) {
+                    AdhkarScreen()
+                }
+                composable(Destination.ALLAH_NAMES.route) {
+                    AllahNamesScreen()
+                }
+                composable(Destination.SAJDAH.route) {
+                    SajdahScreen()
+                }
+                composable(Destination.QURAN_COMPLETION.route) {
+                    QuranCompletionScreen()
                 }
             }
         }

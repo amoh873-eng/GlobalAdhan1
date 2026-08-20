@@ -45,6 +45,10 @@ fun SettingsScreen(
     onOpenAdhan: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
     onOpenAudio: () -> Unit = {},
+    onOpenAdhkar: () -> Unit = {},
+    onOpenAllahNames: () -> Unit = {},
+    onOpenSajdah: () -> Unit = {},
+    onOpenQuranCompletion: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -118,6 +122,20 @@ fun SettingsScreen(
                         Text(stringResource(R.string.open))
                     }
                 }
+            }
+        }
+
+        item { SectionTitle(stringResource(R.string.islamic_tools)) }
+
+        item {
+            SettingsCard {
+                ToolRow(stringResource(R.string.adhkar), onOpenAdhkar)
+                HorizontalDivider()
+                ToolRow(stringResource(R.string.allah_names), onOpenAllahNames)
+                HorizontalDivider()
+                ToolRow(stringResource(R.string.sajdah_title), onOpenSajdah)
+                HorizontalDivider()
+                ToolRow(stringResource(R.string.quran_completions), onOpenQuranCompletion)
             }
         }
 
@@ -376,6 +394,21 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ToolRow(label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
