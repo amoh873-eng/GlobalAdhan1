@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Subtle Islamic eight-pointed star pattern tile, used as a background
+     watermark so the UI feels Islamic without being cluttered. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="128dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+
+    <!-- Eight-pointed star (two overlapping squares) -->
+    <path
+        android:fillColor="#14000000"
+        android:pathData="M32,32 L64,0 L96,32 L128,64 L96,96 L64,128 L32,96 L0,64 Z" />
+
+    <!-- Inner rotated star -->
+    <path
+        android:fillColor="#0D000000"
+        android:pathData="M64,16 L80,48 L112,64 L80,80 L64,112 L48,80 L16,64 L48,48 Z" />
+
+    <!-- Center dot -->
+    <path
+        android:fillColor="#1A000000"
+        android:pathData="M60,60 L68,60 L68,68 L60,68 Z" />
+</vector>

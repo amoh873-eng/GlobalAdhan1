@@ -1,0 +1,17 @@
+# Root project
+**/build/
+.gradle/
+.idea/
+*.iml
+local.properties
+keystore.properties
+*.jks
+*.keystore
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+.DS_Store
+GlobalAdhan/

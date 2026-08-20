@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Islamic accent palette -->
+    <color name="islamic_green">#1B5E20</color>
+    <color name="islamic_green_light">#4CAF50</color>
+    <color name="islamic_gold">#C9A227</color>
+    <color name="islamic_teal">#00897B</color>
+
+    <color name="background_light">#FAFAFA</color>
+    <color name="background_dark">#121212</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <color name="surface_light">#FFFFFF</color>
+    <color name="surface_dark">#1E1E1E</color>
+
+    <color name="text_light">#1A1A1A</color>
+    <color name="text_dark">#E0E0E0</color>
+
+    <color name="error">#B00020</color>
+</resources>

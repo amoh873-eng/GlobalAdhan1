@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Crescent and star -->
+    <path
+        android:fillColor="#C9A227"
+        android:pathData="M62,30 A22,22 0 1 0 62,74 A18,18 0 1 1 62,30 Z" />
+    <path
+        android:fillColor="#C9A227"
+        android:pathData="M66,38 L68,44 L74,44 L69,48 L71,54 L66,50 L61,54 L63,48 L58,44 L64,44 Z" />
+    <!-- Minaret base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,78 L78,78 L78,82 L30,82 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,72 L72,72 L72,78 L36,78 Z" />
+</vector>
