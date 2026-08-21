@@ -1,5 +1,7 @@
 package com.globaladhan.app.presentation.quran
 
+import android.content.Context
+import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.BackoffPolicy
@@ -21,12 +23,14 @@ import com.globaladhan.app.domain.audio.WordTimingEngine
 import com.globaladhan.app.domain.model.QuranAyah
 import com.globaladhan.app.domain.model.QuranSurah
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import java.io.File
 
 data class QuranUiState(
     val surahs: List<QuranSurah> = emptyList(),
@@ -53,6 +57,7 @@ data class QuranUiState(
 
 @HiltViewModel
 class QuranViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val quranRepository: QuranRepository,
     private val settings: SettingsRepository,
     private val audioPlayer: com.globaladhan.app.data.audio.QuranAudioPlayerImpl,
@@ -246,16 +251,36 @@ class QuranViewModel @Inject constructor(
 
     /**
      * Start ExoPlayer recitation of [surah]:[ayah] with real word-timing sync.
-     * If the ayah audio isn't downloaded yet, enqueue a WorkManager download
-     * (with progress) and play when the file appears.
+     * Plays ONLY from local storage — never downloads.
+     * Spec path: Download/quran/{surah:03d}/{ayah:03d}.mp3
+     * Fallback legacy path: {filesDir}/audio/quran/husary/... (older layout).
+     * If both are missing, sets a clear user-facing error.
      */
     fun playExoRecitation(surah: Int, ayah: Int) {
-        val file = storage.quranAyahFile("husary", surah, ayah)
-        if (storage.isDownloadComplete(file)) {
+        val specFile = File(
+            File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "quran"
+            ),
+            "%03d/%03d.mp3".format(surah, ayah)
+        )
+        val legacyFile = storage.quranAyahFile("husary", surah, ayah)
+
+        val file = when {
+            specFile.exists() && specFile.length() > 0 -> specFile
+            storage.isDownloadComplete(legacyFile) -> legacyFile
+            else -> null
+        }
+
+        if (file != null) {
             exoPlayer.playFile(file, surah, ayah)
             loadWordTimings(surah)
         } else {
-            enqueueDownload(surah, ayah)
+            _uiState.update {
+                it.copy(
+                    error = "ملف الآية غير موجود — تأكد من تنزيل تسجيل السورة أولًا"
+                )
+            }
         }
     }
 
