@@ -15,3 +15,9 @@ captures/
 *.aab
 .DS_Store
 GlobalAdhan/
+
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
