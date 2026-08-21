@@ -2,6 +2,7 @@ package com.globaladhan.app.data.audio
 
 import android.content.Context
 import android.os.Environment
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -35,6 +36,8 @@ import javax.inject.Singleton
 class QuranAudioPlayerImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : com.globaladhan.app.domain.audio.QuranAudioPlayer {
+
+    private val TAG = "QuranAudio"
 
     private val exoPlayer: ExoPlayer by lazy {
         ExoPlayer.Builder(context).build().apply {
@@ -91,7 +94,10 @@ class QuranAudioPlayerImpl @Inject constructor(
         _repeatMode.value = repeat
     }
 
-    /** Play a local ayah file. [surahNumber] and [ayahNumber] are required. */
+    /**
+     * Play a local ayah file.
+     * [surahNumber] and [ayahNumber] are required.
+     */
     fun playLocal(
         file: File? = null,
         filePath: String? = null,
@@ -101,6 +107,16 @@ class QuranAudioPlayerImpl @Inject constructor(
         ayahCount: Int,
         onAyahEnd: (() -> Unit)? = null
     ) {
+        // 🔍 رسائل التصحيح - ستراها في Logcat
+        val specFile = File("/storage/emulated/0/Download/quran/${String.format("%03d", surahNumber)}/${String.format("%03d", ayahNumber)}.mp3")
+        Log.d(TAG, "========== بدء تشغيل ==========")
+        Log.d(TAG, "السورة: $surahNumber, الآية: $ayahNumber")
+        Log.d(TAG, "المسار الكامل: ${specFile.absolutePath}")
+        Log.d(TAG, "الملف موجود؟ ${specFile.exists()}")
+        Log.d(TAG, "حجم الملف: ${if (specFile.exists()) specFile.length() else 0} بايت")
+        Log.d(TAG, "هل يمكن القراءة؟ ${if (specFile.exists()) specFile.canRead() else false}")
+        Log.d(TAG, "=================================")
+
         stopInternal()
         _currentAyah.value = surahNumber to ayahNumber
         _loadError.value = null
@@ -112,24 +128,31 @@ class QuranAudioPlayerImpl @Inject constructor(
             file != null -> android.net.Uri.fromFile(file)
             filePath != null -> android.net.Uri.fromFile(File(filePath))
             else -> {
-                val specFile = audioFile(surahNumber, ayahNumber)
-                if (specFile != null && specFile.exists() && specFile.length() > 0) {
-                    android.net.Uri.fromFile(specFile)
+                val specFile2 = audioFile(surahNumber, ayahNumber)
+                if (specFile2 != null && specFile2.exists() && specFile2.length() > 0) {
+                    Log.d(TAG, "✅ باستخدام الملف من audioFile(): ${specFile2.absolutePath}")
+                    android.net.Uri.fromFile(specFile2)
                 } else {
-                    _loadError.value = "ملف الآية غير موجود"
+                    val errorMsg = "ملف الآية غير موجود: ${specFile.absolutePath}"
+                    Log.e(TAG, "❌ $errorMsg")
+                    _loadError.value = errorMsg
                     return
                 }
             }
         }
 
         try {
+            Log.d(TAG, "✅ URI: $uri")
             exoPlayer.setMediaItem(MediaItem.fromUri(uri))
             exoPlayer.prepare()
             exoPlayer.play()
             _totalDurationMillis.value = 0L
             _isPlaying.value = true
             startTicker()
+            Log.d(TAG, "✅ تم بدء التشغيل بنجاح")
         } catch (e: Exception) {
+            val errorMsg = "فشل التشغيل: ${e.message}"
+            Log.e(TAG, "❌ $errorMsg", e)
             _loadError.value = "ملف الآية غير موجود"
             stopInternal()
         }
@@ -243,6 +266,7 @@ class QuranAudioPlayerImpl @Inject constructor(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            Log.e(TAG, "❌ ExoPlayer error", error)
             _loadError.value = "ملف الآية غير موجود"
             stopInternal()
         }
